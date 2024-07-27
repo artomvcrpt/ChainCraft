@@ -1,0 +1,79 @@
+from web3 import Web3
+import pandas as pd
+import matplotlib.pyplot as plt
+
+class ChainCraft:
+    def __init__(self, infura_url: str):
+        self.web3 = Web3(Web3.HTTPProvider(infura_url))
+        if not self.web3.isConnected():
+            raise Exception("Failed to connect to the Ethereum node")
+
+    def get_latest_block(self):
+        return self.web3.eth.getBlock('latest')
+
+    def get_block(self, block_number: int):
+        return self.web3.eth.getBlock(block_number)
+
+    def get_transaction(self, tx_hash: str):
+        return self.web3.eth.getTransaction(tx_hash)
+
+    def get_balance(self, address: str) -> float:
+        balance_wei = self.web3.eth.getBalance(address)
+        return self.web3.fromWei(balance_wei, 'ether')
+
+    def call_contract_function(self, contract_address: str, abi: dict, function_name: str, *args):
+        contract = self.web3.eth.contract(address=contract_address, abi=abi)
+        function = contract.functions[function_name]
+        return function(*args).call()
+
+    def get_transaction_history(self, address: str) -> pd.DataFrame:
+        etherscan_api_key = 'YOUR_ETHERSCAN_API_KEY'
+        etherscan_url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock=0&endblock=99999999&sort=asc&apikey={etherscan_api_key}"
+        
+        response = requests.get(etherscan_url)
+        data = response.json()
+
+        if data['status'] == '1':
+            df = pd.DataFrame(data['result'])
+            df['value'] = df['value'].astype(float) / 1e18  # Convert wei to ether
+            df['timeStamp'] = pd.to_datetime(df['timeStamp'], unit='s')
+            return df
+        else:
+            return pd.DataFrame()
+
+# Example Usage
+if __name__ == "__main__":
+    INFURA_URL = 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'
+    chain_craft = ChainCraft(INFURA_URL)
+
+    # Get Latest Block
+    latest_block = chain_craft.get_latest_block()
+    print("Latest Block:", latest_block)
+
+    # Get Specific Block
+    block_number = latest_block['number'] - 1
+    block = chain_craft.get_block(block_number)
+    print(f"Block {block_number}:", block)
+
+    # Get Transaction
+    if block['transactions']:
+        tx_hash = block['transactions'][0]
+        transaction = chain_craft.get_transaction(tx_hash)
+        print(f"Transaction {tx_hash}:", transaction)
+
+    # Get Account Balance
+    address = '0xYourEthereumAddressHere'
+    balance = chain_craft.get_balance(address)
+    print(f"Balance of {address}: {balance} ETH")
+
+    # Call Contract Function (e.g., ERC20 token balance)
+    contract_address = '0xYourContractAddressHere'
+    abi = [...]  # Contract ABI
+    function_name = 'balanceOf'
+    token_balance = chain_craft.call_contract_function(contract_address, abi, function_name, address)
+    print(f"Token Balance of {address}: {token_balance}")
+
+    # Get Transaction History
+    transaction_history = chain_craft.get_transaction_history(address)
+    print("Transaction History:")
+    print(transaction_history)
